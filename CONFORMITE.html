@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحليل مطابقة منتجات الحليب</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        header h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+        header h2 {
+            font-size: 20px;
+            margin: 5px 0;
+        }
+        .form-container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-container select, .form-container input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            text-align: center;
+            padding: 8px;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            text-align: center;
+            border: none;
+            border-radius: 4px;
+            margin-top: 15px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>الجمهورية الجزائرية الديمقراطية الشعبية</h1>
+    <h2>وزارة التجارة الداخلية وضبط السوق الوطنية</h2>
+</header>
+
+<div class="form-container">
+    <label>اسم مديرية التجارة:</label>
+    <input type="text" id="directorate" placeholder="أدخل اسم المديرية">
+
+    <label>مفتشية التجارة:</label>
+    <input type="text" id="inspection" placeholder="أدخل اسم المفتشية">
+
+    <label>اسم الأعوان:</label>
+    <input type="text" id="agent" placeholder="أدخل اسم الأعوان">
+
+    <label for="productSelect">اختر المنتج:</label>
+    <select id="productSelect" onchange="loadSpecifications()">
+        <option value="" disabled selected>-- اختر المنتج --</option>
+        <option value="الحليب المبستر">الحليب المبستر</option>
+        <option value="الزبدة">الزبدة</option>
+        <option value="الحليب الجاف">الحليب الجاف</option>
+        <option value="الزبادي">الزبادي</option>
+    </select>
+
+    <table id="specificationsTable" style="display:none;">
+        <thead>
+            <tr>
+                <th>التحديد</th>
+                <th>القيمة المدخلة</th>
+                <th>الحالة</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div id="comparisonResult" class="result"></div>
+
+    <button class="btn" onclick="generateReport()">توليد التقرير</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+<script>
+    const productSpecifications = {
+        "الحليب المبستر": [
+            { spec: "نسبة الدهون (%)", standard: 3.5, reference: "مرسوم تنفيذي رقم 96-239" },
+            { spec: "درجة الحرارة (°C)", standard: 4, reference: "مرسوم تنفيذي رقم 96-239" }
+        ],
+        "الزبدة": [
+            { spec: "نسبة الدهون (%)", standard: 80, reference: "قرار وزاري مشترك 1998" },
+            { spec: "نسبة الماء (%)", standard: 16, reference: "قرار وزاري مشترك 1998" }
+        ],
+        "الحليب الجاف": [
+            { spec: "نسبة البروتين (%)", standard: 26, reference: "قرار وزاري مشترك 1998" },
+            { spec: "نسبة الرطوبة (%)", standard: 4, reference: "قرار وزاري مشترك 1998" }
+        ],
+        "الزبادي": [
+            { spec: "نسبة الدهون (%)", standard: 3, reference: "قرار وزاري مشترك 1998" },
+            { spec: "نسبة السكر (%)", standard: 10, reference: "قرار وزاري مشترك 1998" }
+        ]
+    };
+
+    function loadSpecifications() {
+        const product = document.getElementById("productSelect").value;
+        const table = document.getElementById("specificationsTable");
+        const tbody = table.querySelector("tbody");
+
+        tbody.innerHTML = ""; 
+        document.getElementById("comparisonResult").textContent = ""; // تفريغ النتيجة
+        if (productSpecifications[product]) {
+            productSpecifications[product].forEach(spec => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${spec.spec}</td>
+                    <td><input type="number" step="0.01" placeholder="أدخل القيمة" onchange="updateComparison(this, '${product}', ${tbody.children.length})"></td>
+                    <td>---</td>
+                `;
+                tbody.appendChild(row);
+            });
+            table.style.display = "table";
+        }
+    }
+
+    function updateComparison(inputField, product, index) {
+        const inputValue = parseFloat(inputField.value);
+        const specData = productSpecifications[product][index];
+        const statusCell = inputField.closest("tr").querySelector("td:nth-child(3)");
+        let allValid = true;
+
+        if (!isNaN(inputValue)) {
+            if (inputValue >= specData.standard) {
+                statusCell.textContent = `مطابق (${specData.reference})`;
+                statusCell.style.color = "green";
+            } else {
+                statusCell.textContent = `غير مطابق (${specData.reference})`;
+                statusCell.style.color = "red";
+                allValid = false;
+            }
+        } else {
+            statusCell.textContent = "---";
+            statusCell.style.color = "black";
+            allValid = false;
+        }
+
+        // تحديث النتيجة الإجمالية
+        const rows = document.querySelectorAll("#specificationsTable tbody tr td:nth-child(3)");
+        rows.forEach(cell => {
+            if (cell.textContent.startsWith("غير مطابق")) {
+                allValid = false;
+            }
+        });
+
+        const result = document.getElementById("comparisonResult");
+        if (allValid) {
+            result.textContent = "المنتوج مطابق";
+            result.style.color = "green";
+        } else {
+            result.textContent = "المنتوج غير مطابق";
+            result.style.color = "red";
+        }
+    }
+
+    function generateReport() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        const product = document.getElementById("productSelect").value;
+        const directorate = document.getElementById('directorate').value;
+        const inspection = document.getElementById('inspection').value;
+        const agent = document.getElementById('agent').value;
+
+        const tableRows = document.querySelectorAll("#specificationsTable tbody tr");
+        const result = document.getElementById("comparisonResult").textContent;
+
+        pdf.text("الجمهورية الجزائرية الديمقراطية الشعبية", 105, 20, { align: "center" });
+        pdf.text("وزارة التجارة الداخلية وضبط السوق الوطنية", 105, 30, { align: "center" });
+        pdf.text(`تقرير المنتج: ${product}`, 20, 50);
+        pdf.text(`مديرية التجارة: ${directorate}`, 20, 60);
+        pdf.text(`مفتشية التجارة: ${inspection}`, 20, 70);
+        pdf.text(`اسم الأعوان: ${agent}`, 20, 80);
+
+        const date = new Date();
+        const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        pdf.text(`تاريخ التقرير: ${dateStr}`, 20, 90);
+        pdf.text(`نتيجة المنتج: ${result}`, 20, 100);
+
+        let y = 110;
+        tableRows.forEach((row, index) => {
+            const specName = row.querySelector("td:first-child").textContent;
+            const inputValue = row.querySelector("td:nth-child(2) input").value;
+            const status = row.querySelector("td:nth-child(3)").textContent;
+
+            pdf.text(`${specName}: ${inputValue || "غير مدخل"} - ${status}`, 20, y);
+            y += 10;
+        });
+
+        pdf.save(`تقرير_${product}_${date.toISOString().split('T')[0]}.pdf`);
+    }
+</script>
+
+</body>
+</html>
